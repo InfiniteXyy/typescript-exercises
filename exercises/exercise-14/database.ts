@@ -1,20 +1,18 @@
 import { readFile } from "fs";
 
 type FieldQuery<FT> = { $eq: FT } | { $gt: FT } | { $lt: FT } | { $in: FT[] };
-
 type QueryOption<T> = {
     $text?: string;
     $and?: Query<T>[];
     $or?: Query<T>[];
 };
-
 type Query<T extends {}> = { [K in keyof T]?: FieldQuery<T[K]> } & QueryOption<T>;
-
 type Constraint<T> = (item: T) => boolean;
-
+type SortOption<T> = { [key in keyof T]?: number };
+type ProjectionOption<T> = { [key in keyof T]?: 1 };
 type Config<T> = {
-    projection?: { [key in keyof T]?: 1 };
-    sort?: { [key in keyof T]?: 1 };
+    projection?: ProjectionOption<T>;
+    sort?: SortOption<T>;
 };
 export class Database<T> {
     protected rows: T[] = [];
@@ -86,28 +84,35 @@ export class Database<T> {
         return (item) => constraints.every((fn) => fn(item));
     }
 
-    // TODO return type
+    async find(query: Query<T>): Promise<T[]>;
+    async find(query: Query<T>, config: { sort: SortOption<T> }): Promise<T[]>;
+    async find<PT extends ProjectionOption<T>>(
+        query: Query<T>,
+        config: { projection: PT; sort?: SortOption<T> }
+    ): Promise<{ [key in Extract<keyof T, keyof PT>]: T[key] }[]>;
+
     async find(query: Query<T>, config?: Config<T>): Promise<T[]> {
         if (this.rows.length === 0) this.rows = await this.load(this.filename);
         const constraint = this.genConstraint(query);
-        let result = this.rows.filter(constraint);
-        if (config) {
-            if (config.projection) {
-                // @ts-ignore
-                result = result.map((item) => {
-                    const _item: Partial<T> = {};
-                    for (let i in config.projection) _item[i] = item[i];
-                    return _item;
+        let result: T[] = this.rows.filter(constraint);
+        if (config?.sort) {
+            (Object.keys(config.sort) as (keyof SortOption<T>)[]).forEach((key) => {
+                result.sort((a, b) => {
+                    if (a[key] < b[key]) return -config.sort![key];
+                    if (a[key] > b[key]) return +config.sort![key];
+                    return 0;
                 });
-            }
-            if (config.sort) {
-                for (let key in config.sort) {
-                    result = result.sort((a, b) => {
-                        // @ts-ignore
-                        return (a[key] - b[key]) * config.sort[key]
-                    })
-                }
-            }
+            });
+        }
+        if (config?.projection) {
+            const { projection } = config;
+            return result.map((item) => {
+                const _item: Partial<T> = {};
+                (Object.keys(projection) as (keyof T)[]).forEach((i) => {
+                    _item[i] = item[i];
+                });
+                return _item;
+            }) as T[];
         }
         return result;
     }

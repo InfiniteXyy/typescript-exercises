@@ -48,7 +48,7 @@ interface Admin {
 type Person = User | Admin;
 
 const persons: Person[] = [
-    { type: 'user', name: 'Max Mustermann', age: 25, occupation: 'Chimney sweep' },
+    {type: 'user', name: 'Max Mustermann', age: 25, occupation: 'Chimney sweep'},
     {
         type: 'admin',
         name: 'Jane Doe',
@@ -95,7 +95,7 @@ function logPerson(person: Person) {
     console.log(` - ${chalk.green(person.name)}, ${person.age}, ${additionalInformation}`);
 }
 
-function filterUsers(persons: Person[], criteria: User): User[] {
+function filterUsers(persons: Person[], criteria: Partial<User>): User[] {
     return persons.filter(isUser).filter((user) => {
         let criteriaKeys = Object.keys(criteria) as (keyof User)[];
         return criteriaKeys.every((fieldName) => {
